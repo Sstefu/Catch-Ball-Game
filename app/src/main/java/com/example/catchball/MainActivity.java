@@ -1,17 +1,23 @@
 package com.example.catchball;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.sql.Time;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -23,7 +29,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     //Image
-    private ImageView  box, black, pink, orange;
+    private ImageView box, black, pink, orange;
     private Drawable imageBoxRight, imageBoxLeft;
 
     //Size
@@ -31,7 +37,7 @@ public class MainActivity extends AppCompatActivity {
 
     //Position
 
-    private float boxX,boxY;
+    private float boxX, boxY;
     private float blackX, blackY;
     private float pinkX, pinkY;
     private float orangeX, orangeY;
@@ -39,10 +45,11 @@ public class MainActivity extends AppCompatActivity {
     //Score
     private TextView scoreLabel, highScoreLabel;
     private int score, highScore, timeCount;
+    private SharedPreferences settings;
 
     //Class
     private Timer timer;
-    private Handler handler= new Handler();
+    private Handler handler = new Handler();
 
     //Status
     private boolean start_flg = false;
@@ -56,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         gameFrame = findViewById(R.id.gameFrame);
-        startLayout= findViewById(R.id.startLayout);
+        startLayout = findViewById(R.id.startLayout);
         box = findViewById(R.id.box);
         black = findViewById(R.id.black);
         pink = findViewById(R.id.pink);
@@ -67,16 +74,190 @@ public class MainActivity extends AppCompatActivity {
         imageBoxLeft = getResources().getDrawable(R.drawable.box_left);
         imageBoxRight = getResources().getDrawable(R.drawable.box_right);
 
+        //High score
+        settings = getSharedPreferences("GAME_DATA", Context.MODE_PRIVATE);
+        highScore = settings.getInt("HIGH_SCORE", 0);
+        highScoreLabel.setText("High Score: " + highScore);
+
+
     }
 
-    public void changePos(){
+    public void changePos() {
+        //Add timeCount
+        timeCount += 20;
+
+        //Orange
+
+        orangeY += 12;
+        float orangeCenterX = orangeX + orange.getWidth() / 2;
+        float orangeCenterY = orangeY + orange.getHeight() / 2;
+
+        if (hitCheck(orangeCenterX, orangeCenterY)) {
+            orangeY = frameHeight + 100;
+            score += 10;
+        }
+        if (orangeY > frameHeight) {
+            orangeY = -100;
+            orangeX = (float) Math.floor(Math.random() * (frameWidth - orange.getWidth()));
+
+        }
+        orange.setX(orangeX);
+        orange.setY(orangeY);
+
+        //Pink
+
+        if (!pink_flg && timeCount % 1000 == 0) {
+            pink_flg = true;
+            pinkY = -20;
+            pinkX = (float) Math.floor(Math.random() * pink.getWidth());
+        }
+
+        if (pink_flg) {
+            pinkY += 20;
+            float pinkCenterX = pinkX + pink.getWidth() / 2;
+            float pinkCenterY = pinkY + pink.getWidth() / 2;
+
+            if (hitCheck(pinkCenterX, pinkCenterY)) {
+                pinkY = frameHeight + 30;
+                score += 30;
+
+                //change frame width
+
+                if (initialFrameWidth > frameWidth * 110 / 100) {
+                    frameWidth = frameWidth * 110 / 100;
+                    changeFrameWidth(frameWidth);
+
+                }
+            }
+
+            if (pinkY > frameHeight) pink_flg = false;
+            pink.setX(pinkX);
+            pink.setY(pinkY);
+        }
+
+        // Black
+
+        blackY += 18;
+        float blackCenterX = blackX + black.getWidth() / 2;
+        float blackCenterY = blackY + black.getWidth() / 2;
+
+        if (hitCheck(blackCenterX, blackCenterY)) {
+            blackY = frameHeight + 100;
+
+            //Change frameWidth
+            frameWidth = frameWidth * 80 / 100;
+            changeFrameWidth(frameWidth);
+        }
+
+        if (blackY > frameHeight) {
+            blackY = -100;
+            blackX = (float) Math.floor(Math.random() * (frameWidth - black.getWidth()));
+        }
+        black.setX(blackX);
+        black.setY(blackY);
+
+
+        //Move box
+        if (action_flg) {
+
+            //Touching the screen
+
+            boxX += 14;
+            box.setImageDrawable(imageBoxRight);
+        } else {
+            //Releasing the screen
+
+            boxX -= 14;
+            box.setImageDrawable(imageBoxLeft);
+        }
+
+
+        //Check box position
+
+        if (boxX < 0) {
+            boxX = 0;
+            box.setImageDrawable(imageBoxRight);
+        }
+        if (frameWidth - boxSize < boxX) {
+            boxX = frameWidth - boxSize;
+            box.setImageDrawable(imageBoxLeft);
+        }
+        box.setX(boxX);
+        scoreLabel.setText("Score : " + score);
+    }
+
+
+    public boolean hitCheck(float x, float y) {
+        if (boxX <= x && x <= boxX + boxSize && boxY <= y && y <= frameHeight) {
+            return true;
+        }
+        return false;
+    }
+
+    public void changeFrameWidth(int frameWidth) {
+        ViewGroup.LayoutParams params = gameFrame.getLayoutParams();
+        params.width = frameWidth;
+        gameFrame.setLayoutParams(params);
+
+        if (frameWidth <= boxSize) {
+            //GameOver
+            gameOver();
+        }
+    }
+
+    public void gameOver() {
+        //Stop timer
+        timer.cancel();
+        timer = null;
+        start_flg = false;
+
+        //Before showing startLayout, sleep 1 second
+
+        try {
+            TimeUnit.SECONDS.sleep(1);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        changeFrameWidth(initialFrameWidth);
+        startLayout.setVisibility(View.VISIBLE);
+        box.setVisibility(View.INVISIBLE);
+        black.setVisibility(View.INVISIBLE);
+        orange.setVisibility(View.INVISIBLE);
+        pink.setVisibility(View.INVISIBLE);
+
+        //Update High Score
+
+        if (score > highScore){
+            highScore = score;
+            highScoreLabel.setText("High Score: " + highScore);
+            SharedPreferences.Editor editor = settings.edit();
+            editor.putInt("HIGH_SCORE", highScore);
+            editor  .commit();
+
+        }
+
 
     }
 
-    public void startGame(View view){
-        start_flg= true;
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (start_flg) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                action_flg = true;
+
+            } else if (event.getAction() == MotionEvent.ACTION_UP) {
+                action_flg = false;
+            }
+        }
+        return true;
+    }
+
+
+    public void startGame(View view) {
+        start_flg = true;
         startLayout.setVisibility(View.INVISIBLE);
-        if (frameHeight == 0){
+        if (frameHeight == 0) {
             frameHeight = gameFrame.getHeight();
             frameWidth = gameFrame.getWidth();
             initialFrameWidth = frameWidth;
@@ -85,6 +266,8 @@ public class MainActivity extends AppCompatActivity {
             boxX = box.getX();
             boxY = box.getY();
         }
+
+        frameWidth = initialFrameWidth;
 
         box.setX(0.0f);
         black.setY(3000.0f);
@@ -110,7 +293,7 @@ public class MainActivity extends AppCompatActivity {
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                if (start_flg){
+                if (start_flg) {
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -119,19 +302,15 @@ public class MainActivity extends AppCompatActivity {
                     });
                 }
             }
-        },0, 20 );
-
-
-
-    }
-
-    public void endGame(View view){
+        }, 0, 20);
 
 
     }
 
+    public void endGame(View view) {
 
 
+    }
 
 
 }
